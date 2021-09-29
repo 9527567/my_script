@@ -10,9 +10,7 @@ else
 fi
 
 
-if [ $# -gt 4 ]; then
-    echo "参数个数为$#个"
-else
+if [ ! $# -gt 4 ]; then
     echo "参数不够，需要5个参数"
     exit 1
 fi
@@ -37,13 +35,12 @@ EOF
 
 #=================bfgs================================
 
-let nat=`awk 'END{print NR}' temp.VASP`
-# sed -n '9,$p' temp.VASP
-for atom in $(sed -n '6p' temp.VASP)
+let nat=`awk 'END{print NR}' $1`
+for atom in $(sed -n '6p' $1)
 do
     atom_arr[${#atom_arr[@]}]=$atom
 done
-for atomNum in $(sed -n '7p' temp.VASP)
+for atomNum in $(sed -n '7p' $1)
 do
     atomNum_arr[${#atomNum_arr[@]}]=$atomNum
 done
@@ -56,7 +53,7 @@ for i in $(seq 1 ${#atom_arr[@]})
 do
     for j in $(seq 1 ${atomNum_arr[$((i-1))]})
     do
-        echo ${atom_arr[$((i-1))]} `sed -n ''$a'p' temp.VASP` >> temp.ATOMIC_POSITIONS
+        echo ${atom_arr[$((i-1))]} `sed -n ''$a'p' $1` >> temp.ATOMIC_POSITIONS;
         ((a=a+1))
     done
 done
@@ -85,7 +82,7 @@ cat << EOF >> temp.bfgs.in
  /
 &SYSTEM
     ibrav=0, celldm(1)=1.8897268777743552,
-    nat=$((nat-8)),
+    nat=$((nat-9)),
     ntyp=${#atom_arr[@]},
     ecutwfc =70.0,
     occupations='smearing', smearing='methfessel-paxton', degauss=0.02,
@@ -104,7 +101,7 @@ cat << EOF >> temp.bfgs.in
 ATOMIC_SPECIES
 `sed -n '1,$p' temp.ATOMIC_SPECIES`
 CELL_PARAMETERS
-`sed -n '3,5p' temp.VASP`
+`sed -n '3,5p' $1`
 ATOMIC_POSITIONS (crystal)
 `sed -n '1,$p' temp.ATOMIC_POSITIONS`
 K_POINTS {automatic}
