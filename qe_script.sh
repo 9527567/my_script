@@ -13,14 +13,22 @@ fi
 if [ ! $# -gt 4 ]; then
     echo "参数不够，需要5个参数"
     exit 1
+else
+    echo "vasp文件：$1,k-point：$2,$3,$4,压力：$5"
 fi
 
+if [ ! -f "$1" ]; then
+    echo "输入vasp文件不存在"
+    exit 1
+fi
+#==================获取cpu核心数，超线程=================
+let cpu_nums=$(cat /proc/cpuinfo | grep "processor" | wc -l)/2
 #==================赝势================================
 # for file in $(ls /home/jack/upf)
 # do
 #     arr[${#arr[@]}]=$file
 # done
-# 写一个原子质量和赝势对应的文件，多个元素
+# 写一个原子质量和赝势对应的文件，多个元素,添加的元素越多越好
 cat << EOF > ATOMIC_SPECIES
 H     1.00800001620       H.pbe-rrkjus_psl.1.0.0.UPF
 C    12.01099967960       C.pbe-n-kjpaw_psl.1.0.0.UPF
@@ -67,10 +75,15 @@ done
 if [ -f "temp.bfgs.in" ]; then
     rm temp.bfgs.in
 fi
+#==============k-point=========================
+declare -i kx=$2
+declare -i ky=$3
+declare -i kz=$4
+
 #//////////////结构优化输入文件/////////////////
-#                可修改成自己的               /
-#                                           /
-# ///////////////////////////////////////////
+#                可修改成自己的                /
+#                                            /
+# ////////////////////////////////////////////
 cat << EOF >> temp.bfgs.in
  &control
     calculation='vc-relax',
@@ -81,11 +94,14 @@ cat << EOF >> temp.bfgs.in
     forc_conv_thr=1.0D-4,
  /
 &SYSTEM
-    ibrav=0, celldm(1)=1.8897268777743552,
+    ibrav=0, 
+    celldm(1)=1.8897268777743552,
     nat=$((nat-9)),
     ntyp=${#atom_arr[@]},
     ecutwfc =70.0,
-    occupations='smearing', smearing='methfessel-paxton', degauss=0.02,
+    occupations='smearing', 
+    smearing='methfessel-paxton', 
+    degauss=0.02,
     la2F = .true.,
  /
 &ELECTRONS
@@ -105,7 +121,7 @@ CELL_PARAMETERS
 ATOMIC_POSITIONS (crystal)
 `sed -n '1,$p' temp.ATOMIC_POSITIONS`
 K_POINTS {automatic}
-$2 $3 $4 0 0 0
+$kx $ky $kz 0 0 0
 EOF
 #=============删除临时文件====================
 if [ -f "temp.ATOMIC_POSITIONS" ]; then
@@ -116,4 +132,147 @@ if [ -f "temp.ATOMIC_SPECIES" ]; then
 fi
 if [ -f "ATOMIC_SPECIES" ]; then
     rm ATOMIC_SPECIES
+fi
+#===========结构优化，中间文件要保存吗？=================
+mpirun -np $cpu_nums pw.x <temp.bfgs.in> temp.bfgs.out
+
+if [ $? -ne 0 ]; then
+    exit 1
+else
+    echo "结构优化成功！"
+fi
+# while read line
+# do
+#     if [ "${line:0:15}" = "CELL_PARAMETERS" ]; then
+        
+#     fi
+# done < temp.bfgs.in
+start=`grep -n "CELL_PARAMETERS" temp.bfgs.out |cut -f1 -d:`
+let start=`echo $start|awk '{print $NF}'`
+echo $start
+end=`grep -n "End final coordinates" temp.bfgs.out |cut -f1 -d:`
+let end=`echo $end|awk '{print $NF}'`
+echo $end
+
+
+cat << EOF >> temp.scf.fit.in
+ &control
+    calculation='scf',
+    restart_mode='from_scratch',
+    outdir='/tmp' ,
+    pseudo_dir ='/home/jack/upf',/
+    etot_conv_thr=1.0E-5,
+    forc_conv_thr=1.0D-4,
+ /
+&SYSTEM
+    ibrav=0, 
+    celldm(1)=1.8897268777743552,
+    nat=$((nat-9)),
+    ntyp=${#atom_arr[@]},
+    ecutwfc =70.0,
+    occupations='smearing', 
+    smearing='methfessel-paxton', 
+    degauss=0.02,
+    la2F = .true.,
+ /
+&ELECTRONS
+    conv_thr = 1.0d-12,
+    mixing_beta = 0.7,
+ /
+ &IONS
+ /
+`sed -n ''$start','$((end-1))'p' temp.bfgs.out`
+
+K_POINTS {automatic}
+$kx $ky $kz 0 0 0
+EOF
+
+mpirun -np $cpu_nums pw.x <temp.scf.fit.in> temp.scf.fit.out
+if [ $? -ne 0 ]; then
+    echo "密度自洽计算失败！退出！"
+    exit 1
+else
+    echo "密度自洽计算成功！"
+fi
+
+start=`grep -n "CELL_PARAMETERS" temp.scf.fit.out |cut -f1 -d:`
+let start=`echo $start|awk '{print $NF}'`
+echo $start
+end=`grep -n "End final coordinates" temp.scf.fit.out |cut -f1 -d:`
+let end=`echo $end|awk '{print $NF}'`
+echo $end
+
+kx=$kx/2
+ky=$ky/2
+kz=$kz/2
+cat << EOF >> temp.scf.in
+ &control
+    calculation='scf',
+    restart_mode='from_scratch',
+    outdir='/tmp' ,
+    pseudo_dir ='/home/jack/upf',/
+    etot_conv_thr=1.0E-5,
+    forc_conv_thr=1.0D-4,
+ /
+&SYSTEM
+    ibrav=0, 
+    celldm(1)=1.8897268777743552,
+    nat=$((nat-9)),
+    ntyp=${#atom_arr[@]},
+    ecutwfc =70.0,
+    occupations='smearing', 
+    smearing='methfessel-paxton', 
+    degauss=0.02,
+    la2F = .true.,
+ /
+&ELECTRONS
+    conv_thr = 1.0d-12,
+    mixing_beta = 0.7,
+ /
+ &IONS
+ /
+`sed -n ''$start','$((end-1))'p' temp.bfgs.out`
+
+K_POINTS {automatic}
+$kx $ky $kz 0 0 0
+EOF
+
+mpirun -np $cpu_nums pw.x <temp.scf.in> temp.scf.out
+if [ $? -ne 0 ]; then
+    echo "疏松自洽计算失败！退出！"
+    exit 1
+else
+    echo "疏松自洽计算成功！"
+fi
+kx=$kx/2
+ky=$ky/2
+kz=$kz/2
+
+cat << EOF >> temp.elph.in
+&inputph
+  tr2_ph=1.0d-12,
+  prefix='temp',
+  fildvscf='tempdv',
+  amass(1)= 1.00800001620,
+  amass(2)= 32.06000137330,
+  amass(3)= 40.07800000000,
+  outdir='/tmp'
+  fildyn='temp.dyn',
+  electron_phonon='interpolated',
+  alpha_mix=0.2,
+  el_ph_sigma=0.0025,
+  el_ph_nsigma=20,
+  trans=.true.,
+  ldisp=.true.,
+  nq1=$kx,
+  nq2=$ky,
+  nq3=$kz,
+ /
+EOF
+mpirun -np $cpu_nums ph.x <temp.elph.in> temp.elph.out
+if [ $? -ne 0 ]; then
+    echo "电声耦合计算失败！退出！"
+    exit 1
+else
+    echo "电声耦合计算成功！"
 fi
