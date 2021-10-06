@@ -1,6 +1,14 @@
 #!/bin/bash
 # 检查qe,参数设置，输入文件设置
 # 输入文件 VASP文件
+
+#/////////////////常变参数\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+# 赝势文件位置
+upffile="/home/jack/upf"
+# 
+
+
+
 # ==================check ============================
 if  type "pw.x" > /dev/null; then
     echo "">/dev/null
@@ -11,7 +19,7 @@ fi
 
 
 if [ ! $# -gt 4 ]; then
-    echo "参数不够，需要5个参数"
+    echo "参数不够，需要5个参数，依次是vasp输入文件，k-points,压力"
     exit 1
 else
     echo "vasp文件：$1,k-point：$2,$3,$4,压力：$5"
@@ -29,7 +37,7 @@ let cpu_nums=$(cat /proc/cpuinfo | grep "processor" | wc -l)/2
 #     arr[${#arr[@]}]=$file
 # done
 # 写一个原子质量和赝势对应的文件，多个元素,添加的元素越多越好
-cat << EOF > ATOMIC_SPECIES
+cat << EOF > all_ATOMIC_SPECIES
 H     1.00800001620       H.pbe-rrkjus_psl.1.0.0.UPF
 C    12.01099967960       C.pbe-n-kjpaw_psl.1.0.0.UPF
 S    32.06000137330       s_pbe_v1.4.uspp.F.UPF
@@ -65,11 +73,16 @@ do
         ((a=a+1))
     done
 done
+
+if [ -f "temp.ATOMIC_SPECIES" ]; then
+    rm temp.ATOMIC_SPECIES
+fi
+
 # 数组去重，可能需要吧
 atom_arr=($(awk -v RS=' ' '!a[$1]++' <<< ${atom_arr[@]}))
 for i in $(seq 1 ${#atom_arr[@]})
 do
-    cat ATOMIC_SPECIES |grep "^${atom_arr[$((i-1))]}" >> temp.ATOMIC_SPECIES
+    cat all_ATOMIC_SPECIES |grep "^${atom_arr[$((i-1))]}" >> temp.ATOMIC_SPECIES
 done
 
 if [ -f "temp.bfgs.in" ]; then
@@ -89,7 +102,7 @@ cat << EOF >> temp.bfgs.in
     calculation='vc-relax',
     restart_mode='from_scratch',
     outdir='/tmp' ,
-    pseudo_dir ='/home/jack/upf',/
+    pseudo_dir ='$upffile',/
     etot_conv_thr=1.0E-5,
     forc_conv_thr=1.0D-4,
  /
@@ -127,14 +140,24 @@ EOF
 if [ -f "temp.ATOMIC_POSITIONS" ]; then
     rm temp.ATOMIC_POSITIONS
 fi
-if [ -f "temp.ATOMIC_SPECIES" ]; then
-    rm temp.ATOMIC_SPECIES
+
+if [ -f "all_ATOMIC_SPECIES" ]; then
+    rm all_ATOMIC_SPECIES
 fi
-if [ -f "ATOMIC_SPECIES" ]; then
-    rm ATOMIC_SPECIES
+#===========结构优化，设置断点重启=================
+
+if [ -f "temp.bfgs.out" ]; then
+    grep "JOB DONE." temp.bfgs.out
+    if [ $? = 0 ]; then
+        echo "存在结构优化重启文件，将从此重启"
+    else
+        echo "存在结构优化重启文件但未完成，重新运行"
+        mpirun -np $cpu_nums pw.x <temp.bfgs.in> temp.bfgs.out   
+    fi
+else
+    mpirun -np $cpu_nums pw.x <temp.bfgs.in> temp.bfgs.out
 fi
-#===========结构优化，中间文件要保存吗？=================
-mpirun -np $cpu_nums pw.x <temp.bfgs.in> temp.bfgs.out
+
 
 if [ $? -ne 0 ]; then
     exit 1
@@ -154,13 +177,16 @@ end=`grep -n "End final coordinates" temp.bfgs.out |cut -f1 -d:`
 let end=`echo $end|awk '{print $NF}'`
 echo $end
 
+if [ -f "temp.scf.fit.in" ]; then
+    rm temp.scf.fit.in
+fi
 
 cat << EOF >> temp.scf.fit.in
  &control
     calculation='scf',
     restart_mode='from_scratch',
     outdir='/tmp' ,
-    pseudo_dir ='/home/jack/upf',/
+    pseudo_dir ='$upffile',/
     etot_conv_thr=1.0E-5,
     forc_conv_thr=1.0D-4,
  /
@@ -181,13 +207,26 @@ cat << EOF >> temp.scf.fit.in
  /
  &IONS
  /
+ ATOMIC_SPECIES
+`sed -n '1,$p' temp.ATOMIC_SPECIES`
 `sed -n ''$start','$((end-1))'p' temp.bfgs.out`
 
 K_POINTS {automatic}
 $kx $ky $kz 0 0 0
 EOF
 
-mpirun -np $cpu_nums pw.x <temp.scf.fit.in> temp.scf.fit.out
+if [ -f "temp.scf.fit.out" ]; then
+    grep "JOB DONE." temp.scf.fit.out
+    if [ $? = 0 ]; then
+        echo "存在密度自洽重启文件，将从此重启"
+    else
+        echo "存在密度自洽重启文件但未完成，重新运行"
+        mpirun -np $cpu_nums pw.x <temp.scf.fit.in> temp.scf.fit.out    
+    fi
+else
+    mpirun -np $cpu_nums pw.x <temp.scf.fit.in> temp.scf.fit.out 
+fi
+
 if [ $? -ne 0 ]; then
     echo "密度自洽计算失败！退出！"
     exit 1
@@ -195,22 +234,26 @@ else
     echo "密度自洽计算成功！"
 fi
 
-start=`grep -n "CELL_PARAMETERS" temp.scf.fit.out |cut -f1 -d:`
+start=`grep -n "CELL_PARAMETERS" temp.bfgs.out |cut -f1 -d:`
 let start=`echo $start|awk '{print $NF}'`
 echo $start
-end=`grep -n "End final coordinates" temp.scf.fit.out |cut -f1 -d:`
+end=`grep -n "End final coordinates" temp.bfgs.out |cut -f1 -d:`
 let end=`echo $end|awk '{print $NF}'`
 echo $end
 
 kx=$kx/2
 ky=$ky/2
 kz=$kz/2
+
+if [ -f "temp.scf.in" ]; then
+    rm temp.scf.in
+fi
 cat << EOF >> temp.scf.in
  &control
     calculation='scf',
     restart_mode='from_scratch',
     outdir='/tmp' ,
-    pseudo_dir ='/home/jack/upf',/
+    pseudo_dir ='$upffile',/
     etot_conv_thr=1.0E-5,
     forc_conv_thr=1.0D-4,
  /
@@ -231,13 +274,28 @@ cat << EOF >> temp.scf.in
  /
  &IONS
  /
+ATOMIC_SPECIES
+`sed -n '1,$p' temp.ATOMIC_SPECIES`
 `sed -n ''$start','$((end-1))'p' temp.bfgs.out`
 
 K_POINTS {automatic}
 $kx $ky $kz 0 0 0
 EOF
 
-mpirun -np $cpu_nums pw.x <temp.scf.in> temp.scf.out
+
+if [ -f "temp.scf.out" ]; then
+    grep "JOB DONE." temp.scf.out
+    if [ $? = 0 ]; then
+        echo "存在疏松自洽重启文件，将从此重启"
+    else
+        echo "存在疏松自洽重启文件但未完成，重新运行"
+        mpirun -np $cpu_nums pw.x <temp.scf.in> temp.scf.out        
+    fi
+else
+    mpirun -np $cpu_nums pw.x <temp.scf.in> temp.scf.out 
+fi
+
+
 if [ $? -ne 0 ]; then
     echo "疏松自洽计算失败！退出！"
     exit 1
@@ -248,6 +306,9 @@ kx=$kx/2
 ky=$ky/2
 kz=$kz/2
 
+if [ -f "temp.elph.in" ]; then
+    rm temp.elph.in
+fi
 cat << EOF >> temp.elph.in
 &inputph
   tr2_ph=1.0d-12,
@@ -269,7 +330,19 @@ cat << EOF >> temp.elph.in
   nq3=$kz,
  /
 EOF
-mpirun -np $cpu_nums ph.x <temp.elph.in> temp.elph.out
+
+if [ -f "temp.elph.out" ]; then
+    grep "JOB DONE." temp.scf.fit.out
+    if [ $? = 0 ]; then
+        echo "存在疏松自洽重启文件，将从此重启"
+    else
+        echo "存在疏松自洽重启文件但未完成，重新运行"
+        mpirun -np $cpu_nums pw.x <temp.elph.in> temp.elph.out        
+    fi
+else
+    mpirun -np $cpu_nums pw.x <temp.elph.in> temp.elph.out 
+fi
+
 if [ $? -ne 0 ]; then
     echo "电声耦合计算失败！退出！"
     exit 1
