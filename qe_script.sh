@@ -4,7 +4,7 @@
 
 #/////////////////常变参数\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 # 赝势文件位置
-upffile="/home/jack/upf"
+upffile="/home/zhangzw/.app/upf"
 # 输出文件位置 
 out_dir="./"
 
@@ -312,13 +312,11 @@ fi
 cat << EOF >> ${1%.*}-$5.elph.in
 &inputph
   tr2_ph=1.0d-12,
-  prefix='${1%.*}-$5',
-  fildvscf='${1%.*}-$5dv',
   amass(1)= 1.00800001620,
   amass(2)= 32.06000137330,
   amass(3)= 40.07800000000,
   outdir='$out_dir'
-  fildyn='${1%.*}-$5.dyn',
+  fildvscf='pwscfdv',
   electron_phonon='interpolated',
   alpha_mix=0.2,
   el_ph_sigma=0.0025,
@@ -349,4 +347,3 @@ if [ $? -ne 0 ]; then
 else
     echo "电声耦合计算成功！"
 fi
-#==================检查虚频====================
