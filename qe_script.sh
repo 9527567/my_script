@@ -5,8 +5,8 @@
 #/////////////////常变参数\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 # 赝势文件位置
 upffile="/home/jack/upf"
-# 
-
+# 输出文件位置 
+out_dir="./"
 
 
 # ==================check ============================
@@ -61,32 +61,32 @@ do
     atomNum_arr[${#atomNum_arr[@]}]=$atomNum
 done
 
-if [ -f "temp.ATOMIC_POSITIONS" ]; then
-    rm temp.ATOMIC_POSITIONS
+if [ -f "${1%.*}-$5.ATOMIC_POSITIONS" ]; then
+    rm ${1%.*}-$5.ATOMIC_POSITIONS
 fi
 let a=9
 for i in $(seq 1 ${#atom_arr[@]})
 do
     for j in $(seq 1 ${atomNum_arr[$((i-1))]})
     do
-        echo ${atom_arr[$((i-1))]} `sed -n ''$a'p' $1` >> temp.ATOMIC_POSITIONS;
+        echo ${atom_arr[$((i-1))]} `sed -n ''$a'p' $1` >> ${1%.*}-$5.ATOMIC_POSITIONS;
         ((a=a+1))
     done
 done
 
-if [ -f "temp.ATOMIC_SPECIES" ]; then
-    rm temp.ATOMIC_SPECIES
+if [ -f "${1%.*}-$5.ATOMIC_SPECIES" ]; then
+    rm ${1%.*}-$5.ATOMIC_SPECIES
 fi
 
 # 数组去重，可能需要吧
 atom_arr=($(awk -v RS=' ' '!a[$1]++' <<< ${atom_arr[@]}))
 for i in $(seq 1 ${#atom_arr[@]})
 do
-    cat all_ATOMIC_SPECIES |grep "^${atom_arr[$((i-1))]}" >> temp.ATOMIC_SPECIES
+    cat all_ATOMIC_SPECIES |grep "^${atom_arr[$((i-1))]}" >> ${1%.*}-$5.ATOMIC_SPECIES
 done
 
-if [ -f "temp.bfgs.in" ]; then
-    rm temp.bfgs.in
+if [ -f "${1%.*}-$5.bfgs.in" ]; then
+    rm ${1%.*}-$5.bfgs.in
 fi
 #==============k-point=========================
 declare -i kx=$2
@@ -97,11 +97,11 @@ declare -i kz=$4
 #                可修改成自己的                /
 #                                            /
 # ////////////////////////////////////////////
-cat << EOF >> temp.bfgs.in
+cat << EOF >> ${1%.*}-$5.bfgs.in
  &control
     calculation='vc-relax',
     restart_mode='from_scratch',
-    outdir='/tmp' ,
+    outdir='$out_dir' ,
     pseudo_dir ='$upffile',/
     etot_conv_thr=1.0E-5,
     forc_conv_thr=1.0D-4,
@@ -128,17 +128,17 @@ cat << EOF >> temp.bfgs.in
    cell_factor=1.8,
  /
 ATOMIC_SPECIES
-`sed -n '1,$p' temp.ATOMIC_SPECIES`
+`sed -n '1,$p' ${1%.*}-$5.ATOMIC_SPECIES`
 CELL_PARAMETERS
 `sed -n '3,5p' $1`
 ATOMIC_POSITIONS (crystal)
-`sed -n '1,$p' temp.ATOMIC_POSITIONS`
+`sed -n '1,$p' ${1%.*}-$5.ATOMIC_POSITIONS`
 K_POINTS {automatic}
 $kx $ky $kz 0 0 0
 EOF
 #=============删除临时文件====================
-if [ -f "temp.ATOMIC_POSITIONS" ]; then
-    rm temp.ATOMIC_POSITIONS
+if [ -f "${1%.*}-$5.ATOMIC_POSITIONS" ]; then
+    rm ${1%.*}-$5.ATOMIC_POSITIONS
 fi
 
 if [ -f "all_ATOMIC_SPECIES" ]; then
@@ -146,16 +146,16 @@ if [ -f "all_ATOMIC_SPECIES" ]; then
 fi
 #===========结构优化，设置断点重启=================
 
-if [ -f "temp.bfgs.out" ]; then
-    grep "JOB DONE." temp.bfgs.out
+if [ -f "${1%.*}-$5.bfgs.out" ]; then
+    grep "JOB DONE." ${1%.*}-$5.bfgs.out
     if [ $? = 0 ]; then
         echo "存在结构优化重启文件，将从此重启"
     else
         echo "存在结构优化重启文件但未完成，重新运行"
-        mpirun -np $cpu_nums pw.x <temp.bfgs.in> temp.bfgs.out   
+        mpirun -np $cpu_nums pw.x <${1%.*}-$5.bfgs.in> ${1%.*}-$5.bfgs.out   
     fi
 else
-    mpirun -np $cpu_nums pw.x <temp.bfgs.in> temp.bfgs.out
+    mpirun -np $cpu_nums pw.x <${1%.*}-$5.bfgs.in> ${1%.*}-$5.bfgs.out
 fi
 
 
@@ -169,23 +169,23 @@ fi
 #     if [ "${line:0:15}" = "CELL_PARAMETERS" ]; then
         
 #     fi
-# done < temp.bfgs.in
-start=`grep -n "CELL_PARAMETERS" temp.bfgs.out |cut -f1 -d:`
+# done < ${1%.*}-$5.bfgs.in
+start=`grep -n "CELL_PARAMETERS" ${1%.*}-$5.bfgs.out |cut -f1 -d:`
 let start=`echo $start|awk '{print $NF}'`
 echo $start
-end=`grep -n "End final coordinates" temp.bfgs.out |cut -f1 -d:`
+end=`grep -n "End final coordinates" ${1%.*}-$5.bfgs.out |cut -f1 -d:`
 let end=`echo $end|awk '{print $NF}'`
 echo $end
 
-if [ -f "temp.scf.fit.in" ]; then
-    rm temp.scf.fit.in
+if [ -f "${1%.*}-$5.scf.fit.in" ]; then
+    rm ${1%.*}-$5.scf.fit.in
 fi
 
-cat << EOF >> temp.scf.fit.in
+cat << EOF >> ${1%.*}-$5.scf.fit.in
  &control
     calculation='scf',
     restart_mode='from_scratch',
-    outdir='/tmp' ,
+    outdir='$out_dir' ,
     pseudo_dir ='$upffile',/
     etot_conv_thr=1.0E-5,
     forc_conv_thr=1.0D-4,
@@ -208,23 +208,23 @@ cat << EOF >> temp.scf.fit.in
  &IONS
  /
  ATOMIC_SPECIES
-`sed -n '1,$p' temp.ATOMIC_SPECIES`
-`sed -n ''$start','$((end-1))'p' temp.bfgs.out`
+`sed -n '1,$p' ${1%.*}-$5.ATOMIC_SPECIES`
+`sed -n ''$start','$((end-1))'p' ${1%.*}-$5.bfgs.out`
 
 K_POINTS {automatic}
 $kx $ky $kz 0 0 0
 EOF
 
-if [ -f "temp.scf.fit.out" ]; then
-    grep "JOB DONE." temp.scf.fit.out
+if [ -f "${1%.*}-$5.scf.fit.out" ]; then
+    grep "JOB DONE." ${1%.*}-$5.scf.fit.out
     if [ $? = 0 ]; then
         echo "存在密度自洽重启文件，将从此重启"
     else
         echo "存在密度自洽重启文件但未完成，重新运行"
-        mpirun -np $cpu_nums pw.x <temp.scf.fit.in> temp.scf.fit.out    
+        mpirun -np $cpu_nums pw.x <${1%.*}-$5.scf.fit.in> ${1%.*}-$5.scf.fit.out    
     fi
 else
-    mpirun -np $cpu_nums pw.x <temp.scf.fit.in> temp.scf.fit.out 
+    mpirun -np $cpu_nums pw.x <${1%.*}-$5.scf.fit.in> ${1%.*}-$5.scf.fit.out 
 fi
 
 if [ $? -ne 0 ]; then
@@ -234,10 +234,10 @@ else
     echo "密度自洽计算成功！"
 fi
 
-start=`grep -n "CELL_PARAMETERS" temp.bfgs.out |cut -f1 -d:`
+start=`grep -n "CELL_PARAMETERS" ${1%.*}-$5.bfgs.out |cut -f1 -d:`
 let start=`echo $start|awk '{print $NF}'`
 echo $start
-end=`grep -n "End final coordinates" temp.bfgs.out |cut -f1 -d:`
+end=`grep -n "End final coordinates" ${1%.*}-$5.bfgs.out |cut -f1 -d:`
 let end=`echo $end|awk '{print $NF}'`
 echo $end
 
@@ -245,14 +245,14 @@ kx=$kx/2
 ky=$ky/2
 kz=$kz/2
 
-if [ -f "temp.scf.in" ]; then
-    rm temp.scf.in
+if [ -f "${1%.*}-$5.scf.in" ]; then
+    rm ${1%.*}-$5.scf.in
 fi
-cat << EOF >> temp.scf.in
+cat << EOF >> ${1%.*}-$5.scf.in
  &control
     calculation='scf',
     restart_mode='from_scratch',
-    outdir='/tmp' ,
+    outdir='$out_dir' ,
     pseudo_dir ='$upffile',/
     etot_conv_thr=1.0E-5,
     forc_conv_thr=1.0D-4,
@@ -275,24 +275,24 @@ cat << EOF >> temp.scf.in
  &IONS
  /
 ATOMIC_SPECIES
-`sed -n '1,$p' temp.ATOMIC_SPECIES`
-`sed -n ''$start','$((end-1))'p' temp.bfgs.out`
+`sed -n '1,$p' ${1%.*}-$5.ATOMIC_SPECIES`
+`sed -n ''$start','$((end-1))'p' ${1%.*}-$5.bfgs.out`
 
 K_POINTS {automatic}
 $kx $ky $kz 0 0 0
 EOF
 
 
-if [ -f "temp.scf.out" ]; then
-    grep "JOB DONE." temp.scf.out
+if [ -f "${1%.*}-$5.scf.out" ]; then
+    grep "JOB DONE." ${1%.*}-$5.scf.out
     if [ $? = 0 ]; then
         echo "存在疏松自洽重启文件，将从此重启"
     else
         echo "存在疏松自洽重启文件但未完成，重新运行"
-        mpirun -np $cpu_nums pw.x <temp.scf.in> temp.scf.out        
+        mpirun -np $cpu_nums pw.x <${1%.*}-$5.scf.in> ${1%.*}-$5.scf.out        
     fi
 else
-    mpirun -np $cpu_nums pw.x <temp.scf.in> temp.scf.out 
+    mpirun -np $cpu_nums pw.x <${1%.*}-$5.scf.in> ${1%.*}-$5.scf.out 
 fi
 
 
@@ -306,19 +306,19 @@ kx=$kx/2
 ky=$ky/2
 kz=$kz/2
 
-if [ -f "temp.elph.in" ]; then
-    rm temp.elph.in
+if [ -f "${1%.*}-$5.elph.in" ]; then
+    rm ${1%.*}-$5.elph.in
 fi
-cat << EOF >> temp.elph.in
+cat << EOF >> ${1%.*}-$5.elph.in
 &inputph
   tr2_ph=1.0d-12,
-  prefix='temp',
-  fildvscf='tempdv',
+  prefix='${1%.*}-$5',
+  fildvscf='${1%.*}-$5dv',
   amass(1)= 1.00800001620,
   amass(2)= 32.06000137330,
   amass(3)= 40.07800000000,
-  outdir='/tmp'
-  fildyn='temp.dyn',
+  outdir='$out_dir'
+  fildyn='${1%.*}-$5.dyn',
   electron_phonon='interpolated',
   alpha_mix=0.2,
   el_ph_sigma=0.0025,
@@ -331,16 +331,16 @@ cat << EOF >> temp.elph.in
  /
 EOF
 
-if [ -f "temp.elph.out" ]; then
-    grep "JOB DONE." temp.scf.fit.out
+if [ -f "${1%.*}-$5.elph.out" ]; then
+    grep "JOB DONE." ${1%.*}-$5.elph.out
     if [ $? = 0 ]; then
-        echo "存在疏松自洽重启文件，将从此重启"
+        echo "存在电声耦合重启文件，将从此重启"
     else
-        echo "存在疏松自洽重启文件但未完成，重新运行"
-        mpirun -np $cpu_nums pw.x <temp.elph.in> temp.elph.out        
+        echo "存在电声耦合重启文件但未完成，重新运行"
+        mpirun -np $cpu_nums ph.x <${1%.*}-$5.elph.in> ${1%.*}-$5.elph.out        
     fi
 else
-    mpirun -np $cpu_nums pw.x <temp.elph.in> temp.elph.out 
+    mpirun -np $cpu_nums ph.x <${1%.*}-$5.elph.in> ${1%.*}-$5.elph.out 
 fi
 
 if [ $? -ne 0 ]; then
@@ -349,3 +349,4 @@ if [ $? -ne 0 ]; then
 else
     echo "电声耦合计算成功！"
 fi
+#==================检查虚频====================
