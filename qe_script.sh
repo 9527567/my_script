@@ -347,3 +347,117 @@ if [ $? -ne 0 ]; then
 else
     echo "电声耦合计算成功！"
 fi
+#============虚频检查,获取dyn文件数量先==============
+for dyn_file in $(ls *dyn*)
+do
+    dyn_arr[${#dyn_arr[@]}]=$dyn_file
+done
+
+freq=`cat *dyn$[${#dyn_arr[@]}-1] |grep freq|tail -1f|awk '{print $5}'`
+if [ "${freq:0:1}" = "-" ];then
+    echo "有虚频"
+    exit 1
+else
+    echo "没虚频"
+fi
+
+if [ -f "${1%.*}-$5.q2r.in" ]; then
+    rm ${1%.*}-$5.q2r.in
+fi
+
+cat << EOF >> ${1%.*}-$5.q2r.in
+ &input
+  zasr='simple',
+  fildyn='matdyn',
+  flfrc='${1%.*}$2$3$4.fc',
+  la2F=.true.
+ /
+EOF
+
+if [ -f "${1%.*}-$5.q2r.out" ]; then
+    grep "JOB DONE." ${1%.*}-$5.q2r.out
+    if [ $? = 0 ]; then
+        echo "存在q2r重启文件，将从此重启"
+    else
+        echo "存在q2r重启文件但未完成，重新运行"
+        mpirun -np $cpu_nums q2r.x <${1%.*}-$5.q2r.in> ${1%.*}-$5.q2r.out        
+    fi
+else
+    mpirun -np $cpu_nums q2r.x <${1%.*}-$5.q2r.in> ${1%.*}-$5.q2r.out 
+fi
+
+if [ $? -ne 0 ]; then
+    echo "q2r计算失败！退出！"
+    exit 1
+else
+    echo "q2r计算成功！"
+fi
+
+#===========lambda==================
+#===========向上取整函数==============
+function ceil() {
+    floor=$(echo "scale=0;$1/1" | bc -l) 
+    add=$(awk -v num1=$floor -v num2=$1 'BEGIN{print(num1<num2)?"1":"0"}')
+    echo $(expr $floor + $add)
+}
+
+
+if [ -f "${1%.*}-$5.lambda.in" ]; then
+    rm ${1%.*}-$5.lambda.in
+fi
+if [ -f "temp_nqs" ]; then
+    rm temp_nqs
+fi
+
+if [ -f "temp_dyn" ]; then
+    rm temp_dyn
+fi
+
+for j in $(cat ${1%.*}-$5.q2r.out |grep nqs |awk '{print $2}'); do echo $j >> temp_nqs ;done
+sed -n '3,$p' *dyn0 > temp_dyn
+paste -d' ' temp_dyn temp_nqs > temp_iDontKnowHowToNameIt
+cat << EOF >> ${1%.*}-$5.lambda.in
+`echo $(ceil $freq) 0.1 1`
+`sed -n '2p' *dyn0`
+`sed -n '1,$p' temp_iDontKnowHowToNameIt`
+`ls -1 elph_dir/*lambda*` 
+0.1
+EOF
+if [ -f "temp_dyn" ]; then
+    rm temp_dyn
+fi
+
+
+# let i=0
+# let k=0
+# while read line
+# do
+# if [ $k -lt 2 ];then
+# echo "$line" >> ${1%.*}-$5.lambda.in
+# ((k++))
+# elif [ $i -lt ${#nqs_arr[@]} ];then
+# echo "$line"|awk -v value=${nqs_arr[i]} '{if(NF==3) $4=value;print $0}'>> ${1%.*}-$5.lambda.in
+# ((i++))
+# else 
+# echo "$line" >> ${1%.*}-$5.lambda.in
+# fi
+# done < temp.lambda.in
+
+if [ -f "${1%.*}-$5.lambda.out" ]; then
+    grep "JOB DONE." ${1%.*}-$5.lambda.out
+    if [ $? = 0 ]; then
+        echo "存在lambda重启文件，将从此重启"
+    else
+        echo "存在lambda重启文件但未完成，重新运行"
+        mpirun -np 1 lambda.x <${1%.*}-$5.lambda.in> ${1%.*}-$5.lambda.out        
+    fi
+else
+    mpirun -np 1 lambda.x <${1%.*}-$5.lambda.in> ${1%.*}-$5.lambda.out 
+fi
+
+if [ $? -ne 0 ]; then
+    echo "lambda计算失败！退出！"
+    exit 1
+else
+    echo "lambda计算成功！"
+fi
