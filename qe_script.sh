@@ -4,9 +4,9 @@
 
 #/////////////////常变参数\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 # 赝势文件位置
-upffile="/home/zhangzw/.app/upf"
+upffile="/home/jack/upf"
 # 输出文件位置 
-out_dir="./"
+out_dir=`pwd`
 
 
 # ==================check ============================
@@ -29,6 +29,7 @@ if [ ! -f "$1" ]; then
     echo "输入vasp文件不存在"
     exit 1
 fi
+sed -i 's/\r//' $1
 #==================获取cpu核心数，超线程=================
 let cpu_nums=$(cat /proc/cpuinfo | grep "processor" | wc -l)/2
 #==================赝势================================
@@ -109,7 +110,7 @@ cat << EOF >> ${1%.*}-$5.bfgs.in
 &SYSTEM
     ibrav=0, 
     celldm(1)=1.8897268777743552,
-    nat=$((nat-9)),
+    nat=$((nat-8)),
     ntyp=${#atom_arr[@]},
     ecutwfc =70.0,
     occupations='smearing', 
@@ -193,7 +194,7 @@ cat << EOF >> ${1%.*}-$5.scf.fit.in
 &SYSTEM
     ibrav=0, 
     celldm(1)=1.8897268777743552,
-    nat=$((nat-9)),
+    nat=$((nat-8)),
     ntyp=${#atom_arr[@]},
     ecutwfc =70.0,
     occupations='smearing', 
@@ -260,7 +261,7 @@ cat << EOF >> ${1%.*}-$5.scf.in
 &SYSTEM
     ibrav=0, 
     celldm(1)=1.8897268777743552,
-    nat=$((nat-9)),
+    nat=$((nat-8)),
     ntyp=${#atom_arr[@]},
     ecutwfc =70.0,
     occupations='smearing', 
