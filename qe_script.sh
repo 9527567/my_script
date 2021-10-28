@@ -311,12 +311,13 @@ if [ -f "${1%.*}-$5.elph.in" ]; then
     rm ${1%.*}-$5.elph.in
 fi
 cat << EOF >> ${1%.*}-$5.elph.in
+Electron-phonon coefficients for ${1%.*}
 &inputph
   tr2_ph=1.0d-12,
   amass(1)= 1.00800001620,
   amass(2)= 32.06000137330,
   amass(3)= 40.07800000000,
-  outdir='$out_dir'
+  outdir='$out_dir',
   fildvscf='pwscfdv',
   electron_phonon='interpolated',
   alpha_mix=0.2,
@@ -324,9 +325,7 @@ cat << EOF >> ${1%.*}-$5.elph.in
   el_ph_nsigma=20,
   trans=.true.,
   ldisp=.true.,
-  nq1=$kx,
-  nq2=$ky,
-  nq3=$kz,
+  nq1=$kx, nq2=$ky, nq3=$kz,
  /
 EOF
 
