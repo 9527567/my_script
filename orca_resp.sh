@@ -41,32 +41,31 @@ y
 100
 2
 1
-opt.pdb
+opt.pqr
 0
 q
 EOF
 
 rm tmp.cpcm tmp.densities tmp.inp tmp.gbw tmp.molden.input tmp_property.txt
 
-obabel opt.pdb -ipdb -omol2 -O tmp.mol2
-rm opt.pdb
-IFS=''
-while read line
-do
-tmp=`echo $line|awk '{if(NF==5) print $5}'`
-#echo $tmp
-arr[${#arr[@]}]=$tmp
-done < tmp.molden.chg
-while read line
-do
-tmp=`echo $line|awk '{if(NF==9) print $9}'`
-if [ -n "$tmp" ];then
-tempval=${arr[i]}
-let i=${i}+1
-echo "$line"|awk '{if(NF==9) sub($9,""'$tempval'"");print $0}'>>$2
-else
-echo "$line">>$2
-fi
-done < tmp.mol2
+obabel opt.pqr -ipqr -omol2 -O $2
+rm opt.pqr
+# IFS=''
+# while read line
+# do
+# tmp=`echo $line|awk '{if(NF==5) print $5}'`
+# #echo $tmp
+# arr[${#arr[@]}]=$tmp
+# done < tmp.molden.chg
+# while read line
+# do
+# tmp=`echo $line|awk '{if(NF==9) print $9}'`
+# if [ -n "$tmp" ];then
+# tempval=${arr[i]}
+# let i=${i}+1
+# echo "$line"|awk '{if(NF==9) sub($9,""'$tempval'"");print $0}'>>$2
+# else
+# echo "$line">>$2
+# fi
+# done < tmp.mol2
 
-rm tmp.molden.chg tmp.mol2
