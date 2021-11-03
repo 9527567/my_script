@@ -83,7 +83,7 @@ fi
 atom_arr=($(awk -v RS=' ' '!a[$1]++' <<< ${atom_arr[@]}))
 for i in $(seq 1 ${#atom_arr[@]})
 do
-    cat all_ATOMIC_SPECIES |grep -iE "^${atom_arr[$((i-1))]}\\.|^${atom_arr[$((i-1))]}_||^${atom_arr[$((i-1))]}-" >> ${1%.*}-$5.ATOMIC_SPECIES
+    cat all_ATOMIC_SPECIES |grep "^${atom_arr[$((i-1))]}\s" >> ${1%.*}-$5.ATOMIC_SPECIES
 done
 
 if [ -f "${1%.*}-$5.bfgs.in" ]; then
