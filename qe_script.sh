@@ -83,7 +83,7 @@ fi
 atom_arr=($(awk -v RS=' ' '!a[$1]++' <<< ${atom_arr[@]}))
 for i in $(seq 1 ${#atom_arr[@]})
 do
-    cat all_ATOMIC_SPECIES |grep "^${atom_arr[$((i-1))]}" >> ${1%.*}-$5.ATOMIC_SPECIES
+    cat all_ATOMIC_SPECIES |grep -i "^${atom_arr[$((i-1))]}\\.|^${atom_arr[$((i-1))]}_" >> ${1%.*}-$5.ATOMIC_SPECIES
 done
 
 if [ -f "${1%.*}-$5.bfgs.in" ]; then
@@ -357,8 +357,32 @@ freq=`cat *dyn$[${#dyn_arr[@]}-1] |grep freq|tail -1f|awk '{print $5}'`
 if [ "${freq:0:1}" = "-" ];then
     echo "有虚频"
     exit 1
-else
-    echo "没虚频"
+fi
+
+# elph_dir/elph.inp_lambda.123 前三行文件检查虚频
+let temp_val=0
+let temp_val=$(sed -n '2,7p' elph_dir/elph.inp_lambda.1|awk '{if ($1<0) print NR}')
+if [ $temp_val -ne 1 -o $temp_val -ne 0];then
+    echo "有虚频"
+    exit 1
+fi
+let temp_val=0
+let temp_val=$(sed -n '2,7p' elph_dir/elph.inp_lambda.2|awk '{if ($1<0) print NR}')
+if [ $temp_val -ne 1 -o $temp_val -ne 0];then
+    echo "有虚频"
+    exit 1
+fi
+let temp_val=0
+let temp_val=$(sed -n '2,7p' elph_dir/elph.inp_lambda.3|awk '{if ($1<0) print NR}')
+if [ $temp_val -ne 1 -o $temp_val -ne 0 ];then
+    echo "有虚频"
+    exit 1
+fi
+let temp_val=0
+let temp_val=$(sed -n '2,7p' elph_dir/elph.inp_lambda.4|awk '{if ($1<0) print NR}')
+if [ $temp_val -ne 0 ];then
+    echo "有虚频"
+    exit 1
 fi
 
 if [ -f "${1%.*}-$5.q2r.in" ]; then
