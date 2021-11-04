@@ -38,6 +38,9 @@ Multiwfn tmp.molden.input > /dev/null << EOF
 y
 0
 0
+q
+EOF
+Multiwfn tmp.molden.chg >/dev/null << EOF
 100
 2
 1
@@ -50,6 +53,7 @@ rm tmp.cpcm tmp.densities tmp.inp tmp.gbw tmp.molden.input tmp_property.txt
 
 obabel opt.pqr -ipqr -omol2 -O $2
 rm opt.pqr
+rm tmp*
 # IFS=''
 # while read line
 # do
