@@ -362,13 +362,13 @@ fi
 # elph_dir/elph.inp_lambda.123 前三行文件检查虚频
 let temp_val=0
 let temp_val=$(sed -n '2,7p' elph_dir/elph.inp_lambda.1|awk '{if ($1<0) print NR}')
-if [ $temp_val -ne 1 -o $temp_val -ne 0];then
+if [ $temp_val -ne 1 -o $temp_val -ne 0 ];then
     echo "有虚频"
     exit 1
 fi
 let temp_val=0
 let temp_val=$(sed -n '2,7p' elph_dir/elph.inp_lambda.2|awk '{if ($1<0) print NR}')
-if [ $temp_val -ne 1 -o $temp_val -ne 0];then
+if [ $temp_val -ne 1 -o $temp_val -ne 0 ];then
     echo "有虚频"
     exit 1
 fi
