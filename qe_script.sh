@@ -103,7 +103,8 @@ cat << EOF >> ${1%.*}-$5.bfgs.in
     calculation='vc-relax',
     restart_mode='from_scratch',
     outdir='$out_dir' ,
-    pseudo_dir ='$upffile',/
+    pseudo_dir ='$upffile',
+    nstep=500,
     etot_conv_thr=1.0E-5,
     forc_conv_thr=1.0D-4,
  /
@@ -420,7 +421,7 @@ for j in $(cat ${1%.*}-$5.q2r.out |grep nqs |awk '{print $2}'); do echo $j >> te
 sed -n '3,$p' *dyn0 > temp_dyn
 paste -d' ' temp_dyn temp_nqs > temp_iDontKnowHowToNameIt
 cat << EOF >> ${1%.*}-$5.lambda.in
-`echo $(ceil $freq) 0.1 1`
+`echo $(ceil $freq) 0.5 1`
 `sed -n '2p' *dyn0`
 `sed -n '1,$p' temp_iDontKnowHowToNameIt`
 `ls -1 elph_dir/*lambda*` 
