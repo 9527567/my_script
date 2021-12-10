@@ -6,7 +6,7 @@
 # 赝势文件位置
 upffile="/home/jack/upf"
 # 输出文件位置 
-out_dir=`pwd`
+out_dir=$(pwd)
 
 
 # ==================check ============================
@@ -32,6 +32,9 @@ fi
 sed -i 's/\r//' $1
 #==================获取cpu核心数，超线程=================
 let cpu_nums=$(cat /proc/cpuinfo | grep "processor" | wc -l)/2
+if [ $# -gt 5 ];then
+    let cpu_nums=$6
+fi
 #==================赝势================================
 # for file in $(ls /home/jack/upf)
 # do
@@ -103,8 +106,7 @@ cat << EOF >> ${1%.*}-$5.bfgs.in
     calculation='vc-relax',
     restart_mode='from_scratch',
     outdir='$out_dir' ,
-    pseudo_dir ='$upffile',
-    nstep=500,
+    pseudo_dir ='$upffile',/
     etot_conv_thr=1.0E-5,
     forc_conv_thr=1.0D-4,
  /
@@ -127,7 +129,7 @@ cat << EOF >> ${1%.*}-$5.bfgs.in
  &CELL
    cell_dynamics = 'bfgs',
    press = $5,
-   cell_factor=1.8,
+   cell_factor=10.8,
  /
 ATOMIC_SPECIES
 `sed -n '1,$p' ${1%.*}-$5.ATOMIC_SPECIES`
@@ -405,6 +407,25 @@ function ceil() {
     echo $(expr $floor + $add)
 }
 
+# 能带计算
+if [ -f "${1%.*}-$5.bands.in" ]; then
+    rm ${1%.*}-$5.bands.in
+fi
+
+cat << EOF >> ${1%.*}-$5.bands.in
+$BANDS
+outdir = './',
+filband='bd.dat',
+lp=.true.
+/
+EOF
+bands.x <${1%.*}-$5.bands.in > ${1%.*}-$5.bands.out
+if [ $? -ne 0 ]; then
+    echo "能带计算失败！退出！"
+    exit 1
+else
+    echo "能带计算成功！"
+fi
 
 if [ -f "${1%.*}-$5.lambda.in" ]; then
     rm ${1%.*}-$5.lambda.in
@@ -421,7 +442,7 @@ for j in $(cat ${1%.*}-$5.q2r.out |grep nqs |awk '{print $2}'); do echo $j >> te
 sed -n '3,$p' *dyn0 > temp_dyn
 paste -d' ' temp_dyn temp_nqs > temp_iDontKnowHowToNameIt
 cat << EOF >> ${1%.*}-$5.lambda.in
-`echo $(ceil $freq) 0.5 1`
+`echo $(ceil $freq) 0.1 1`
 `sed -n '2p' *dyn0`
 `sed -n '1,$p' temp_iDontKnowHowToNameIt`
 `ls -1 elph_dir/*lambda*` 
@@ -431,7 +452,41 @@ if [ -f "temp_dyn" ]; then
     rm temp_dyn
 fi
 
+if [ -f "${1%.*}-$5.matdyn.in" ]; then
+    rm ${1%.*}-$5.matdyn.in
+fi
+cat << EOF >> ${1%.*}-$5.matdyn.in
+&input
+asr='crystal',
+flfrc='${1%.*}$2$3$4.fc',
+flfrq='${1%.*}$2$3$4.freq',
+q_in_band_form=.true.,
+q_in_cryst_coord=.true.,
+/
+`sed -n '2p' *dyn0`
+`sed -n '1,$p' temp_iDontKnowHowToNameIt`
+EOF
+matdyn.x <${1%.*}-$5.matdyn.in> ${1%.*}-$5.matdyn.out
 
+if [ $? -ne 0 ]; then
+    echo "声子谱计算失败！退出！"
+    exit 1
+else
+    echo "声子谱计算成功！"
+fi
+if [ -f "${1%.*}-$5.plotband.in" ]; then
+    rm ${1%.*}-$5.plotband.in
+fi
+
+cat << EOF >> ${1%.*}-$5.plotband.in
+${1%.*}$2$3$4.freq
+0 2000
+freq.plot
+freq.ps
+0.0
+50.0 0.0
+EOF
+plotband.x <${1%.*}-$5.plotband.in> ${1%.*}-$5.plotband.out
 # let i=0
 # let k=0
 # while read line
