@@ -108,6 +108,7 @@ cat << EOF >> ${1%.*}-$5.bfgs.in
     outdir='$out_dir' ,
     pseudo_dir ='$upffile',/
     etot_conv_thr=1.0E-5,
+    nstep=500,
     forc_conv_thr=1.0D-4,
  /
 &SYSTEM
