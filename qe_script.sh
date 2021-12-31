@@ -4,9 +4,9 @@
 
 #/////////////////常变参数\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 # 赝势文件位置
-upffile="/home/jack/upf"
-# 输出文件位置 
-out_dir=$(pwd)
+upffile="/home/zhangzw/.app/upf"
+# 输出文件位置
+out_dir=`pwd`
 
 
 # ==================check ============================
@@ -51,6 +51,9 @@ Ca   40.07800000000       Ca_pbe_v1.uspp.F.UPF
 Cu   63.546               Cu_pbe_v1.2.uspp.F.UPF
 Sr   87.62                Sr_pbe_v1.uspp.F.UPF
 O    15.999               O.pbe-n-kjpaw_psl.0.1.UPF
+Ti   47.867               ti_pbe_v1.4.uspp.F.UPF
+As   74.921               As.pbe-n-rrkjus_psl.0.2.UPF
+V       50.94           v_pbe_v1.4.uspp.F.UPF
 EOF
 
 #=================bfgs================================
@@ -104,26 +107,27 @@ declare -i kz=$4
 cat << EOF >> ${1%.*}-$5.bfgs.in
  &control
     calculation='vc-relax',
+    nstep=500,
     restart_mode='from_scratch',
     outdir='$out_dir' ,
     pseudo_dir ='$upffile',/
     etot_conv_thr=1.0E-5,
-    nstep=500,
     forc_conv_thr=1.0D-4,
  /
 &SYSTEM
-    ibrav=0, 
+    ibrav=0,
     celldm(1)=1.8897268777743552,
     nat=$((nat-8)),
     ntyp=${#atom_arr[@]},
     ecutwfc =70.0,
-    occupations='smearing', 
-    smearing='methfessel-paxton', 
+    occupations='smearing',
+    smearing='methfessel-paxton',
     degauss=0.02,
     la2F = .true.,
  /
 &ELECTRONS
     conv_thr = 1.0d-12,
+    electron_maxstep=500,
  /
  &IONS
  /
@@ -157,7 +161,7 @@ if [ -f "${1%.*}-$5.bfgs.out" ]; then
         echo "存在结构优化重启文件，将从此重启"
     else
         echo "存在结构优化重启文件但未完成，重新运行"
-        mpirun -np $cpu_nums pw.x <${1%.*}-$5.bfgs.in> ${1%.*}-$5.bfgs.out   
+        mpirun -np $cpu_nums pw.x <${1%.*}-$5.bfgs.in> ${1%.*}-$5.bfgs.out
     fi
 else
     mpirun -np $cpu_nums pw.x <${1%.*}-$5.bfgs.in> ${1%.*}-$5.bfgs.out
@@ -172,7 +176,7 @@ fi
 # while read line
 # do
 #     if [ "${line:0:15}" = "CELL_PARAMETERS" ]; then
-        
+
 #     fi
 # done < ${1%.*}-$5.bfgs.in
 start=`grep -n "CELL_PARAMETERS" ${1%.*}-$5.bfgs.out |cut -f1 -d:`
@@ -196,13 +200,13 @@ cat << EOF >> ${1%.*}-$5.scf.fit.in
     forc_conv_thr=1.0D-4,
  /
 &SYSTEM
-    ibrav=0, 
+    ibrav=0,
     celldm(1)=1.8897268777743552,
     nat=$((nat-8)),
     ntyp=${#atom_arr[@]},
     ecutwfc =70.0,
-    occupations='smearing', 
-    smearing='methfessel-paxton', 
+    occupations='smearing',
+    smearing='methfessel-paxton',
     degauss=0.02,
     la2F = .true.,
  /
@@ -226,10 +230,10 @@ if [ -f "${1%.*}-$5.scf.fit.out" ]; then
         echo "存在密度自洽重启文件，将从此重启"
     else
         echo "存在密度自洽重启文件但未完成，重新运行"
-        mpirun -np $cpu_nums pw.x <${1%.*}-$5.scf.fit.in> ${1%.*}-$5.scf.fit.out    
+        mpirun -np $cpu_nums pw.x <${1%.*}-$5.scf.fit.in> ${1%.*}-$5.scf.fit.out
     fi
 else
-    mpirun -np $cpu_nums pw.x <${1%.*}-$5.scf.fit.in> ${1%.*}-$5.scf.fit.out 
+    mpirun -np $cpu_nums pw.x <${1%.*}-$5.scf.fit.in> ${1%.*}-$5.scf.fit.out
 fi
 
 if [ $? -ne 0 ]; then
@@ -263,13 +267,13 @@ cat << EOF >> ${1%.*}-$5.scf.in
     forc_conv_thr=1.0D-4,
  /
 &SYSTEM
-    ibrav=0, 
+    ibrav=0,
     celldm(1)=1.8897268777743552,
     nat=$((nat-8)),
     ntyp=${#atom_arr[@]},
     ecutwfc =70.0,
-    occupations='smearing', 
-    smearing='methfessel-paxton', 
+    occupations='smearing',
+    smearing='methfessel-paxton',
     degauss=0.02,
     la2F = .true.,
  /
@@ -294,10 +298,10 @@ if [ -f "${1%.*}-$5.scf.out" ]; then
         echo "存在疏松自洽重启文件，将从此重启"
     else
         echo "存在疏松自洽重启文件但未完成，重新运行"
-        mpirun -np $cpu_nums pw.x <${1%.*}-$5.scf.in> ${1%.*}-$5.scf.out        
+        mpirun -np $cpu_nums pw.x <${1%.*}-$5.scf.in> ${1%.*}-$5.scf.out
     fi
 else
-    mpirun -np $cpu_nums pw.x <${1%.*}-$5.scf.in> ${1%.*}-$5.scf.out 
+    mpirun -np $cpu_nums pw.x <${1%.*}-$5.scf.in> ${1%.*}-$5.scf.out
 fi
 
 
@@ -318,9 +322,9 @@ cat << EOF >> ${1%.*}-$5.elph.in
 Electron-phonon coefficients for ${1%.*}
 &inputph
   tr2_ph=1.0d-12,
-  amass(1)= 1.00800001620,
-  amass(2)= 32.06000137330,
-  amass(3)= 40.07800000000,
+  !amass(1)= 1.00800001620,
+  !amass(2)= 32.06000137330,
+  !amass(3)= 40.07800000000,
   outdir='$out_dir',
   fildvscf='pwscfdv',
   electron_phonon='interpolated',
@@ -339,10 +343,10 @@ if [ -f "${1%.*}-$5.elph.out" ]; then
         echo "存在电声耦合重启文件，将从此重启"
     else
         echo "存在电声耦合重启文件但未完成，重新运行"
-        mpirun -np $cpu_nums ph.x <${1%.*}-$5.elph.in> ${1%.*}-$5.elph.out        
+        mpirun -np $cpu_nums ph.x <${1%.*}-$5.elph.in> ${1%.*}-$5.elph.out
     fi
 else
-    mpirun -np $cpu_nums ph.x <${1%.*}-$5.elph.in> ${1%.*}-$5.elph.out 
+    mpirun -np $cpu_nums ph.x <${1%.*}-$5.elph.in> ${1%.*}-$5.elph.out
 fi
 
 if [ $? -ne 0 ]; then
@@ -387,10 +391,10 @@ if [ -f "${1%.*}-$5.q2r.out" ]; then
         echo "存在q2r重启文件，将从此重启"
     else
         echo "存在q2r重启文件但未完成，重新运行"
-        mpirun -np $cpu_nums q2r.x <${1%.*}-$5.q2r.in> ${1%.*}-$5.q2r.out        
+        mpirun -np $cpu_nums q2r.x <${1%.*}-$5.q2r.in> ${1%.*}-$5.q2r.out
     fi
 else
-    mpirun -np $cpu_nums q2r.x <${1%.*}-$5.q2r.in> ${1%.*}-$5.q2r.out 
+    mpirun -np $cpu_nums q2r.x <${1%.*}-$5.q2r.in> ${1%.*}-$5.q2r.out
 fi
 
 if [ $? -ne 0 ]; then
@@ -403,7 +407,7 @@ fi
 #===========lambda==================
 #===========向上取整函数==============
 function ceil() {
-    floor=$(echo "scale=0;$1/1" | bc -l) 
+    floor=$(echo "scale=0;$1/1" | bc -l)
     add=$(awk -v num1=$floor -v num2=$1 'BEGIN{print(num1<num2)?"1":"0"}')
     echo $(expr $floor + $add)
 }
@@ -414,7 +418,7 @@ if [ -f "${1%.*}-$5.bands.in" ]; then
 fi
 
 cat << EOF >> ${1%.*}-$5.bands.in
-$BANDS
+\$BANDS
 outdir = './',
 filband='bd.dat',
 lp=.true.
@@ -443,10 +447,10 @@ for j in $(cat ${1%.*}-$5.q2r.out |grep nqs |awk '{print $2}'); do echo $j >> te
 sed -n '3,$p' *dyn0 > temp_dyn
 paste -d' ' temp_dyn temp_nqs > temp_iDontKnowHowToNameIt
 cat << EOF >> ${1%.*}-$5.lambda.in
-`echo $(ceil $freq) 0.1 1`
+`echo $(ceil $freq) 0.5 1`
 `sed -n '2p' *dyn0`
 `sed -n '1,$p' temp_iDontKnowHowToNameIt`
-`ls -1 elph_dir/*lambda*` 
+`ls -1 elph_dir/*lambda*`
 0.1
 EOF
 if [ -f "temp_dyn" ]; then
@@ -498,7 +502,7 @@ plotband.x <${1%.*}-$5.plotband.in> ${1%.*}-$5.plotband.out
 # elif [ $i -lt ${#nqs_arr[@]} ];then
 # echo "$line"|awk -v value=${nqs_arr[i]} '{if(NF==3) $4=value;print $0}'>> ${1%.*}-$5.lambda.in
 # ((i++))
-# else 
+# else
 # echo "$line" >> ${1%.*}-$5.lambda.in
 # fi
 # done < temp.lambda.in
@@ -509,10 +513,10 @@ if [ -f "${1%.*}-$5.lambda.out" ]; then
         echo "存在lambda重启文件，将从此重启"
     else
         echo "存在lambda重启文件但未完成，重新运行"
-        mpirun -np 1 lambda.x <${1%.*}-$5.lambda.in> ${1%.*}-$5.lambda.out        
+        mpirun -np 1 lambda.x <${1%.*}-$5.lambda.in> ${1%.*}-$5.lambda.out
     fi
 else
-    mpirun -np 1 lambda.x <${1%.*}-$5.lambda.in> ${1%.*}-$5.lambda.out 
+    mpirun -np 1 lambda.x <${1%.*}-$5.lambda.in> ${1%.*}-$5.lambda.out
 fi
 
 if [ $? -ne 0 ]; then
